@@ -178,7 +178,11 @@ function ConsentuaClient(opts) {
      */
     self.http = new ConsentuaHTTP({baseURL: opts.baseURL});
 
-    self.http.setPersistent('ServiceID', opts.serviceID);
+    self.http.setPersistent('serviceID', opts.serviceID);
+    self.http.setPersistent('ServiceID', opts.serviceID); // BUG: API case is inconsistent :-/
+    self.http.setPersistent('clientID', opts.clientID);
+    self.http.setPersistent('ClientID', opts.clientID);
+    self.http.setPersistent('language', opts.lang);
 
 
     /**
@@ -313,9 +317,18 @@ function ConsentuaClient(opts) {
 
         console.log("Create user", email);
 
-        self.postQS('/serviceuser/AddUserToService', {EmailAddress: email}).done(function(result){
+        var params = {};
+
+        if(typeof email !== 'undefined'){
+            params.EmailAddress = email;
+        } else {
+            // BUG: API is sad if we don't specify an email :-/
+            params.EmailAddress = "anonymous-user@consentua.com";
+        }
+
+        self.http.post('/serviceuser/AnonAddUserToService', params).done(function(result){
             self.uidmap[result.Identifier] = result.UserId;
-            def.resolve(result.UserId);
+            def.resolve(result);
         });
 
         return def;
@@ -331,7 +344,7 @@ function ConsentuaClient(opts) {
         }
 
         var def = $.Deferred();
-        self.postBody('/userconsent/GetConsents', {"UserId": self.uidmap[uid]}).done(function(response){
+        self.http.postBody('/userconsent/GetConsents', {"UserId": self.uidmap[uid]}).done(function(response){
             if(response.Success){
                 def.resolve(response.Consent.Purposes);
             }
@@ -356,8 +369,8 @@ function ConsentuaClient(opts) {
         var model = {
             // Token will be added automatically
             "Consent": {
-                "ClientId": clientID,
-                "ServiceId": serviceID,
+                "ClientId": opts.clientID,
+                "ServiceId": opts.serviceID,
                 "UserId": self.uidmap[uid],
                 "Purposes": []
             }
@@ -374,7 +387,7 @@ function ConsentuaClient(opts) {
         model.AuthenticationData = JSON.stringify(extra);
 
         var def = $.Deferred();
-        self.postBody('/userconsent/SetConsentsEx', model).done(function(response){
+        self.http.postBody('/userconsent/SetConsentsEx', model).done(function(response){
             def.resolve(response);
         });
 
@@ -769,6 +782,6 @@ function rstr2any(input, encoding)
  * CommonJS Compatability (for use in node etc.)
  * If module is defined, export ConsentuaClient
  */
-if(module) {
+if(typeof module !== 'undefined') {
   module.exports = ConsentuaClient;
 }
