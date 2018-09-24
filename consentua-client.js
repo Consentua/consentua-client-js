@@ -55,6 +55,7 @@ function ConsentuaHTTP(opts)
     {
         if(xhr.status != '404') // 404s are expected in many cases, so don't throw an exception!
         {
+            xhr.reject("HTTP " + textStatus + ": " + errorThrown);
             throw {status: textStatus, error: errorThrown};
         }
     }
@@ -179,9 +180,11 @@ function ConsentuaClient(opts) {
     self.http = new ConsentuaHTTP({baseURL: opts.baseURL});
 
     self.http.setPersistent('serviceID', opts.serviceID);
+    self.http.setPersistent('ServiceId', opts.serviceID);
     self.http.setPersistent('ServiceID', opts.serviceID); // BUG: API case is inconsistent :-/
     self.http.setPersistent('clientID', opts.clientID);
     self.http.setPersistent('ClientID', opts.clientID);
+    self.http.setPersistent('ClientId', opts.clientID);
     self.http.setPersistent('language', opts.lang);
 
 
@@ -201,6 +204,7 @@ function ConsentuaClient(opts) {
         var loggedin = function(data){
             if(!data.Success){
                 console.error("Could not log in to Consentua service", data);
+                deferred.reject("Login failed");
                 return;
             }
 
@@ -209,7 +213,7 @@ function ConsentuaClient(opts) {
             self.http.setPersistent('token', data.Token);
 
             console.debug("Logged in to Consentua service account", self.accessToken);
-            deferred.resolve();
+            deferred.resolve(true);
         };
 
         var d = new Date();
@@ -245,6 +249,8 @@ function ConsentuaClient(opts) {
             self.http.get('/template/Get', {}).done(function(response){
                 templates = response.Templates; // Cache for later
                 deferred.resolve(templates);
+            }).fail(function(err){
+                deferred.reject(err);
             });
         }
 
@@ -268,10 +274,12 @@ function ConsentuaClient(opts) {
             }
 
             console.error("Template " + tid + " was not found", templates);
-            def.reject(false);
+            def.reject("Template " + tid + " was not found");
         }
 
-        self.getTemplates().done(pickTemplate);
+        self.getTemplates().done(pickTemplate).fail(function(err){
+            def.reject(err);
+        });
 
         return def;
     }
@@ -295,11 +303,11 @@ function ConsentuaClient(opts) {
         var def = $.Deferred();
 
         self.http.get('/serviceuser/AnonGetServiceUser', {identifier: guid}).done(function(data){
-            self.uidmap[uid] = data.UserId;
+            self.uidmap[guid] = data.UserId;
             def.resolve(true, data.UserId);
         }).fail(function(xhr, status){
             if(xhr.status == '404')
-                def.resolve(false, undefined)
+                def.reject("User '" + guid + "' not found");
             else
                 throw "Error " + xhr.status;
         });
@@ -329,6 +337,8 @@ function ConsentuaClient(opts) {
         self.http.post('/serviceuser/AnonAddUserToService', params).done(function(result){
             self.uidmap[result.Identifier] = result.UserId;
             def.resolve(result);
+        }).fail(function(err){
+            def.reject(err);
         });
 
         return def;
@@ -349,8 +359,12 @@ function ConsentuaClient(opts) {
                 def.resolve(response.Consent.Purposes);
             }
             else
-            def.resolve({});
-        });
+            {
+                def.reject(response.Error);
+            }
+        }).fail(function(err){
+            def.reject(err);
+        })
 
         return def;
     }
@@ -389,6 +403,8 @@ function ConsentuaClient(opts) {
         var def = $.Deferred();
         self.http.postBody('/userconsent/SetConsentsEx', model).done(function(response){
             def.resolve(response);
+        }).fail(function(err){
+            def.reject(err);
         });
 
         return def;
