@@ -197,6 +197,10 @@ function ConsentuaClient(opts) {
         if(opts.serviceKey === false)
         {
             console.error("Cannot login() to Consentua unless a serviceKey was specified when ConsentuaClient was instantiated");
+            deferred.reject(false);
+        }
+        else {
+            console.log("Logging in - Service key", opts.serviceKey);
         }
 
         var deferred = $.Deferred();
