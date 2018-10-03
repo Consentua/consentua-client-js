@@ -55,8 +55,7 @@ function ConsentuaHTTP(opts)
     {
         if(xhr.status != '404') // 404s are expected in many cases, so don't throw an exception!
         {
-            xhr.reject("HTTP " + textStatus + ": " + errorThrown);
-            throw {status: textStatus, error: errorThrown};
+            //throw {status: textStatus, error: errorThrown};
         }
     }
 
@@ -173,19 +172,18 @@ function ConsentuaClient(opts) {
 
     var self = this;
 
+    console.log("Initialise Consentua client", opts);
 
     /**
      * Set up an HTTP client
      */
     self.http = new ConsentuaHTTP({baseURL: opts.baseURL});
 
-    self.http.setPersistent('serviceID', opts.serviceID);
+    self.http.setPersistent('ServiceID', opts.serviceID);
     self.http.setPersistent('ServiceId', opts.serviceID);
-    self.http.setPersistent('ServiceID', opts.serviceID); // BUG: API case is inconsistent :-/
-    self.http.setPersistent('clientID', opts.clientID);
+
     self.http.setPersistent('ClientID', opts.clientID);
     self.http.setPersistent('ClientId', opts.clientID);
-    self.http.setPersistent('language', opts.lang);
 
 
     /**
@@ -194,21 +192,19 @@ function ConsentuaClient(opts) {
     */
     self.login = function()
     {
+        var deferred = $.Deferred();
+
         if(opts.serviceKey === false)
         {
             console.error("Cannot login() to Consentua unless a serviceKey was specified when ConsentuaClient was instantiated");
-            deferred.reject(false);
+            deferred.resolve(false);
+            return;
         }
-        else {
-            console.log("Logging in - Service key", opts.serviceKey);
-        }
-
-        var deferred = $.Deferred();
 
         var loggedin = function(data){
             if(!data.Success){
                 console.error("Could not log in to Consentua service", data);
-                deferred.reject("Login failed");
+                deferred.resolve(false);
                 return;
             }
 
@@ -250,11 +246,9 @@ function ConsentuaClient(opts) {
             deferred.resolve(templates);
         }
         else {
-            self.http.get('/template/Get', {}).done(function(response){
+            self.http.get('/template/AnonGet', {language: opts.lang}).done(function(response){
                 templates = response.Templates; // Cache for later
                 deferred.resolve(templates);
-            }).fail(function(err){
-                deferred.reject(err);
             });
         }
 
@@ -278,12 +272,10 @@ function ConsentuaClient(opts) {
             }
 
             console.error("Template " + tid + " was not found", templates);
-            def.reject("Template " + tid + " was not found");
+            def.reject(false);
         }
 
-        self.getTemplates().done(pickTemplate).fail(function(err){
-            def.reject(err);
-        });
+        self.getTemplates().done(pickTemplate);
 
         return def;
     }
@@ -307,11 +299,11 @@ function ConsentuaClient(opts) {
         var def = $.Deferred();
 
         self.http.get('/serviceuser/AnonGetServiceUser', {identifier: guid}).done(function(data){
-            self.uidmap[guid] = data.UserId;
+            self.uidmap[uid] = data.UserId;
             def.resolve(true, data.UserId);
         }).fail(function(xhr, status){
             if(xhr.status == '404')
-                def.reject("User '" + guid + "' not found");
+                def.resolve(false, undefined)
             else
                 throw "Error " + xhr.status;
         });
@@ -327,22 +319,17 @@ function ConsentuaClient(opts) {
     {
         var def = $.Deferred();
 
+        if(typeof email == 'undefined')
+            email = "undefined-email@consentua.com";
+
         console.log("Create user", email);
 
-        var params = {};
+        var args = {EmailAddress: email};
 
-        if(typeof email !== 'undefined'){
-            params.EmailAddress = email;
-        } else {
-            // BUG: API is sad if we don't specify an email :-/
-            params.EmailAddress = "anonymous-user@consentua.com";
-        }
-
-        self.http.post('/serviceuser/AnonAddUserToService', params).done(function(result){
+        self.http.post('/serviceuser/AnonAddUserToService', args).done(function(result){
+            console.log("Added user", result);
             self.uidmap[result.Identifier] = result.UserId;
             def.resolve(result);
-        }).fail(function(err){
-            def.reject(err);
         });
 
         return def;
@@ -358,17 +345,13 @@ function ConsentuaClient(opts) {
         }
 
         var def = $.Deferred();
-        self.http.postBody('/userconsent/GetConsents', {"UserId": self.uidmap[uid]}).done(function(response){
+        self.http.postBody('/userconsent/AnonGetConsents', {"UserId": self.uidmap[uid]}).done(function(response){
             if(response.Success){
                 def.resolve(response.Consent.Purposes);
             }
             else
-            {
-                def.reject(response.Error);
-            }
-        }).fail(function(err){
-            def.reject(err);
-        })
+            def.resolve({});
+        });
 
         return def;
     }
@@ -385,7 +368,6 @@ function ConsentuaClient(opts) {
         }
 
         var model = {
-            // Token will be added automatically
             "Consent": {
                 "ClientId": opts.clientID,
                 "ServiceId": opts.serviceID,
@@ -405,10 +387,8 @@ function ConsentuaClient(opts) {
         model.AuthenticationData = JSON.stringify(extra);
 
         var def = $.Deferred();
-        self.http.postBody('/userconsent/SetConsentsEx', model).done(function(response){
+        self.http.postBody('/userconsent/AnonSetConsentsEx', model).done(function(response){
             def.resolve(response);
-        }).fail(function(err){
-            def.reject(err);
         });
 
         return def;
