@@ -299,7 +299,7 @@ function ConsentuaClient(opts) {
         var def = $.Deferred();
 
         self.http.get('/serviceuser/AnonGetServiceUser', {identifier: guid}).done(function(data){
-            self.uidmap[uid] = data.UserId;
+            self.uidmap[guid] = data.UserId;
             def.resolve(true, data.UserId);
         }).fail(function(xhr, status){
             if(xhr.status == '404')
