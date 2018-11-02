@@ -320,7 +320,7 @@ function ConsentuaClient(opts) {
         var def = $.Deferred();
 
         if(typeof email == 'undefined')
-            email = "undefined-email@consentua.com";
+            email = "anon" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + "@consentua.com";
 
         console.log("Create user", email);
 
