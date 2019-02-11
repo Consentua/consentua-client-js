@@ -185,6 +185,18 @@ function ConsentuaClient(opts) {
     self.http.setPersistent('ClientID', opts.clientID);
     self.http.setPersistent('ClientId', opts.clientID);
 
+    /**
+     * Get auth information
+     */
+    self.getServiceID = function()
+    {
+        return opts.serviceID;
+    }
+
+    self.getClientID = function()
+    {
+        return opts.clientID;
+    }
 
     /**
     * Log in to the API to get an access token
