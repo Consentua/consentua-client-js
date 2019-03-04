@@ -172,7 +172,7 @@ function ConsentuaClient(opts) {
 
     var self = this;
 
-    console.log("Initialise Consentua client", opts);
+    console.debug("Initialise Consentua client", opts);
 
     /**
      * Set up an HTTP client
@@ -184,6 +184,23 @@ function ConsentuaClient(opts) {
 
     self.http.setPersistent('ClientID', opts.clientID);
     self.http.setPersistent('ClientId', opts.clientID);
+
+    /**
+     * Get debug info - eg credentials - mostly used to generate helpful debugging/error
+     * messages
+     */
+     self.debugInfo = function(merge) {
+         if(typeof merge == 'undefined') {
+             merge = {};
+         }
+
+         merge.serviceID = opts.serviceID;
+         merge.clientID = opts.clientID;
+         merge.lang = opts.lang;
+         merge.serviceKey = opts.serviceKey;
+
+         return merge;
+     }
 
     /**
      * Get auth information
@@ -261,7 +278,7 @@ function ConsentuaClient(opts) {
             self.http.get('/template/AnonGet', {language: opts.lang}).done(function(response){
                 templates = response.Templates; // Cache for later
                 deferred.resolve(templates);
-            });
+            }).fail(deferred.reject);
         }
 
         return deferred;
@@ -278,6 +295,7 @@ function ConsentuaClient(opts) {
             for(var i in templates){
                 var t = templates[i];
                 if(t.Id == tid) {
+                    t.ServiceID = opts.serviceID; // Patch the ServiceID into the template
                     def.resolve(t);
                     return;
                 }
@@ -287,7 +305,7 @@ function ConsentuaClient(opts) {
             def.reject(false);
         }
 
-        self.getTemplates().done(pickTemplate);
+        self.getTemplates().done(pickTemplate).fail(def.reject);
 
         return def;
     }
@@ -342,6 +360,9 @@ function ConsentuaClient(opts) {
             console.log("Added user", result);
             self.uidmap[result.Identifier] = result.UserId;
             def.resolve(result);
+        }).fail(function(r){
+            console.error("Could not add user", r);
+            def.reject();
         });
 
         return def;
